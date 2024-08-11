@@ -413,7 +413,7 @@ class AnnotationApp(QMainWindow):
         if self.current_index < len(self.file_list) - 1:
             self.current_index += 1
             self.current_file = self.file_list[self.current_index]
-            self.set_audio_file(self.current_file)  # Load audio file for next annotation
+            self.set_audio_file(self.current_file) 
             self.update_view()
         else:
             self.close()
@@ -422,15 +422,23 @@ class AnnotationApp(QMainWindow):
         if self.current_index > 0:
             self.current_index -= 1
             self.current_file = self.file_list[self.current_index]
-            self.set_audio_file(self.current_file)  # Load audio file for prev annotation
+            self.set_audio_file(self.current_file) 
             self.update_view()
 
-    def get_file_list(self):
+    def get_completed_files(self, csv_path):
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            return df['filename'].tolist()
+        return []
+
+    def get_file_list(self, folder_path, completed_files):
         self.file_list = []
         for subdir, _, files in os.walk(folder_path):
             for file in files:
                 if file.endswith('.wav'):
-                    self.file_list.append(os.path.join(subdir, file))
+                    full_path = os.path.join(subdir, file)
+                    if full_path not in completed_files:
+                        self.file_list.append(full_path)
         return self.file_list
 
     def on_click(self, event):
@@ -539,16 +547,26 @@ class AnnotationApp(QMainWindow):
 def annotate_spectrograms(folder_path, csv_path):
     app = QApplication(sys.argv)
     window = AnnotationApp()
-    window.get_file_list()  
-    window.show()
+    
+    completed_files = window.get_completed_files(csv_path)  
+    window.get_file_list(folder_path, completed_files)  
+    
+    if window.file_list:
+        window.show()
+        window.load_next_file()  # Load the first unannotated file
+        app.exec_()
 
-    window.load_next_file()  # Load the first file
-    app.exec_()
-
-    df = pd.DataFrame(window.annotations)
-    df.to_csv(csv_path, index=False)
+        df = pd.DataFrame(window.annotations)
+        
+        if os.path.exists(csv_path):
+            df_existing = pd.read_csv(csv_path)
+            df = pd.concat([df_existing, df], ignore_index=True) 
+        
+        df.to_csv(csv_path, index=False)
+    else:
+        print("All files have been annotated.")
 
 if __name__ == '__main__':
-    folder_path = r"C:\Users\prapa\Desktop\other\auscultation\lamata\PraneelData" #change path
-    csv_path = r"C:\Users\prapa\Desktop\other\auscultation\lamata\data.csv" #change path
+    folder_path = r"C:\Users\prapa\Desktop\other\auscultation\lamata\PraneelData"  # Change path
+    csv_path = r"C:\Users\prapa\Desktop\other\auscultation\lamata\data.csv"  # Change path
     annotate_spectrograms(folder_path, csv_path)
