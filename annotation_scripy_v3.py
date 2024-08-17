@@ -29,6 +29,7 @@ class AnnotationApp(QMainWindow):
         self.s_transform_used = False  # To track if S-transform was used
         self.file_list = []  # List of files to be annotated
         self.mediaPlayer = QMediaPlayer(None, QMediaPlayer.LowLatency) 
+        self.amplify_factor = 1.0  # To handle volume amplification above 100
         self.init_ui()
 
     def init_ui(self):
@@ -245,6 +246,19 @@ class AnnotationApp(QMainWindow):
 
         controls_layout.addLayout(audio_layout)
 
+        # Volume control
+        volume_layout = QHBoxLayout()
+        volume_label = QLabel("Volume:")
+        volume_layout.addWidget(volume_label)
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setRange(0, 1000)
+        self.volume_slider.setValue(100)
+        self.volume_slider.valueChanged.connect(self.update_volume)
+        volume_layout.addWidget(self.volume_slider)
+        self.volume_value_label = QLabel("100")
+        volume_layout.addWidget(self.volume_value_label)
+        controls_layout.addLayout(volume_layout)
+
         self.mediaPlayer.durationChanged.connect(self.update_duration)
         self.mediaPlayer.positionChanged.connect(self.update_position)
 
@@ -288,6 +302,7 @@ class AnnotationApp(QMainWindow):
         rate, data = wav.read(filepath)
         if data.ndim > 1:  
             data = np.mean(data, axis=1)
+        data = self.amplify_signal(data)  # Amplify if needed
         Pxx, freqs, bins, im = ax.specgram(data, Fs=rate, NFFT=1024, noverlap=900, cmap='jet')
         Pxx[Pxx == 0] = np.finfo(float).eps  # Prevent log(0) issues
         ax.imshow(10 * np.log10(Pxx), extent=[0, bins[-1], freqs[0], freqs[-1]], aspect='auto', cmap='jet', origin='lower')
@@ -305,6 +320,7 @@ class AnnotationApp(QMainWindow):
         rate = rate // downsample_factor
         if max_length:
             data = data[:rate * max_length]
+        data = self.amplify_signal(data)  # Amplify if needed
         S = st.st(data)
         ax.imshow(np.abs(S), aspect='auto', extent=[0, len(data)/rate, 0, rate/2], cmap='jet', origin='lower')
         ax.set_title(f'S-Transform: {os.path.basename(filepath)}', pad=30)
@@ -318,6 +334,7 @@ class AnnotationApp(QMainWindow):
         ax.clear()
         rate, data = wav.read(filepath)
         time = np.linspace(0, len(data) / rate, num=len(data))
+        data = self.amplify_signal(data)  # Amplify if needed
         ax.plot(time, data)
         ax.set_title(f'Dual View: {os.path.basename(filepath)}', pad=30)
         ax.set_xlabel('Time (s)')
@@ -358,6 +375,22 @@ class AnnotationApp(QMainWindow):
                 line_label = self.ax.text(end, self.ax.get_ylim()[1], label, color=line.get_color(), verticalalignment='bottom')
                 self.line_labels.append(line_label)
 
+    def update_volume(self):
+        volume = self.volume_slider.value()
+        self.volume_value_label.setText(str(volume))
+        if volume <= 100:
+            self.mediaPlayer.setVolume(volume)
+            self.amplify_factor = 1.0
+        else:
+            self.mediaPlayer.setVolume(100)
+            self.amplify_factor = volume / 100.0
+
+    def amplify_signal(self, data):
+        if self.amplify_factor > 1.0:
+            max_val = np.iinfo(data.dtype).max
+            data = np.clip(data * self.amplify_factor, -max_val, max_val).astype(data.dtype)
+        return data
+
     def save_annotations(self, skip=False, exit=False):
         end_time = time.time()
         if self.start_time is None:
@@ -376,7 +409,7 @@ class AnnotationApp(QMainWindow):
             's_transform_used': self.s_transform_used  # 
         }
         annotation.update(self.line_positions)
-        # Save       quality drop positions as a list of tuples
+        # Save quality drop positions as a list of tuples
         annotation['quality_drop_positions'] = self.quality_drop_positions
         self.annotations.append(annotation)
 
@@ -413,7 +446,7 @@ class AnnotationApp(QMainWindow):
         if self.current_index < len(self.file_list) - 1:
             self.current_index += 1
             self.current_file = self.file_list[self.current_index]
-            self.set_audio_file(self.current_file) 
+            self.set_audio_file(self.current_file)  # Load audio file for next annotation
             self.update_view()
         else:
             self.close()
@@ -422,7 +455,7 @@ class AnnotationApp(QMainWindow):
         if self.current_index > 0:
             self.current_index -= 1
             self.current_file = self.file_list[self.current_index]
-            self.set_audio_file(self.current_file) 
+            self.set_audio_file(self.current_file)  # Load audio file for prev annotation
             self.update_view()
 
     def get_completed_files(self, csv_path):
@@ -430,6 +463,15 @@ class AnnotationApp(QMainWindow):
             df = pd.read_csv(csv_path)
             return df['filename'].tolist()
         return []
+
+    def get_last_index(self, csv_path):
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            if not df.empty:
+                last_file = df['filename'].iloc[-1]
+                if last_file in self.file_list:
+                    return self.file_list.index(last_file)
+        return -1
 
     def get_file_list(self, folder_path, completed_files):
         self.file_list = []
@@ -543,15 +585,19 @@ class AnnotationApp(QMainWindow):
         self.lines.append(audio_line)
         self.canvas.draw()
 
-
 def annotate_spectrograms(folder_path, csv_path):
     app = QApplication(sys.argv)
     window = AnnotationApp()
     
-    completed_files = window.get_completed_files(csv_path)  
-    window.get_file_list(folder_path, completed_files)  
+    completed_files = window.get_completed_files(csv_path)  # Load the completed files from the CSV
+    window.get_file_list(folder_path, completed_files)  # Only load files that haven't been annotated
     
     if window.file_list:
+        last_index = window.get_last_index(csv_path)
+        if last_index != -1:
+            window.current_index = last_index
+            window.current_file = window.file_list[window.current_index]
+        
         window.show()
         window.load_next_file()  # Load the first unannotated file
         app.exec_()
@@ -560,7 +606,7 @@ def annotate_spectrograms(folder_path, csv_path):
         
         if os.path.exists(csv_path):
             df_existing = pd.read_csv(csv_path)
-            df = pd.concat([df_existing, df], ignore_index=True) 
+            df = pd.concat([df_existing, df], ignore_index=True)  # Append new annotations to the existing ones
         
         df.to_csv(csv_path, index=False)
     else:
