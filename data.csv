@@ -1,3 +1,1 @@
 filename,quality,systolic_murmur,diastolic_murmur,continuous_murmur,confidence,quality_drop,time_spent,s_transform_used,S1_start,S1_end,S2_start,S2_end,quality_drop_positions
-C:\Users\prapa\Desktop\other\auscultation\lamata\PraneelData\Data\00C5CB33-826D-4336-BC36-8EE746A0C17C\raw\11-05-2021_10.13.15.wav,unsure,unsure,unsure,yes,Low,None,42.205994844436646,False,0.4941527004198236,0.8497374456201237,1.8288838454470357,2.7152690073956096,"[[0.4220050709588934, 0.9218850750810539], [5.343504080615216, 5.7351626405459815]]"
-C:\Users\prapa\Desktop\other\auscultation\lamata\PraneelData\Data\01B1179B-0DC2-4485-8DE0-5B8D7C9F6007\raw\16-10-2022_10.32.01.wav,unsure,unsure,unsure,unsure,None,Temporary,3.0189430713653564,False,,,,,[]
