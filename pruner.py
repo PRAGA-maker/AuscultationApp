@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import random
 
 csv_path = r"C:\Users\prapa\Documents\GitHub\AuscultationApp\the-circor-digiscope-phonocardiogram-dataset-1.0.3\training_data.csv"
 base_folder = r"C:\Users\prapa\Documents\GitHub\AuscultationApp\the-circor-digiscope-phonocardiogram-dataset-1.0.3\the-circor-digiscope-phonocardiogram-dataset-1.0.3"
@@ -26,7 +27,7 @@ selected_files = []
 for label, condition in categories.items():
     filtered_files = df[condition]["Patient ID"].dropna().astype(int).astype(str).tolist()
     category_files = [f for f in wav_files if any(fid in f for fid in filtered_files)]
-    selected_category_files = category_files[:20]
+    selected_category_files = random.sample(category_files,10)
     for file in selected_category_files:
         directory, original_filename = os.path.split(file)
         new_filename = f"{label}_{original_filename}"
