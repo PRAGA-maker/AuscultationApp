@@ -617,6 +617,6 @@ def annotate_spectrograms(folder_path, csv_path):
         print("All files have been annotated.")
 
 if __name__ == '__main__':
-    folder_path = r"C:\Users\prapa\Desktop\other\auscultation\lamata\PraneelData"  # Change path
-    csv_path = r"C:\Users\prapa\Desktop\other\auscultation\lamata\data.csv"  # Change path
+    folder_path = r"C:\Users\prapa\Documents\GitHub\AuscultationApp\training_data"  # Change path
+    csv_path = r"C:\Users\prapa\Documents\GitHub\AuscultationApp\data.csv"  # Change path
     annotate_spectrograms(folder_path, csv_path)
